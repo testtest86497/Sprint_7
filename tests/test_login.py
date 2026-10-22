@@ -1,49 +1,45 @@
-import requests
-from data import generate_random_string_for_login
 import allure
+import pytest
+from data import Messages
+from helpers import generate_courier_data
+from methods.courier_methods import CourierMethods
+
 
 class TestLogin:
-    URL = 'https://qa-scooter.praktikum-services.ru/'
 
-    @allure.title('Курьер может авторизоваться с валидными данными')
-    def test_login_with_valid_credentials(self):
-        payload = {
-            "login": generate_random_string_for_login(10),
-            "password": generate_random_string_for_login(10)
-        }
+    @allure.title('Курьер может авторизоваться')
+    def test_login_with_valid_credentials(self, courier):
+        response = CourierMethods.login({
+            "login": courier["login"],
+            "password": courier["password"]
+        })
 
-        create_response = requests.post(self.URL + 'api/v1/courier', data=payload)
+        assert response.status_code == 200
+        assert "id" in response.json()
 
-        login_response = requests.post(self.URL + 'api/v1/courier/login', data=payload)
-
-        assert login_response.status_code == 200
-        assert "id" in login_response.json()
-        
-
-    @allure.title('Курьер не может авторизоваться с невалидными данными')
+    @allure.title('Авторизация несуществующего курьера возвращает 404')
     def test_login_with_invalid_credentials(self):
-        payload = {
-            "login": generate_random_string_for_login(10),
-            "password": generate_random_string_for_login(10)
-        }
+        payload = generate_courier_data()
 
-        response = requests.post(self.URL + 'api/v1/courier/login', data=payload)
+        response = CourierMethods.login({
+            "login": payload["login"],
+            "password": payload["password"]
+        })
 
         assert response.status_code == 404
-        assert response.json() == {"code": 404, "message": "Учетная запись не найдена"}
+        assert response.json()["message"] == Messages.ACCOUNT_NOT_FOUND
 
-
-    @allure.title('Курьер не может авторизоваться с отсутствующими полями')
-    def test_login_with_missing_fields(self):
+    @allure.title('Авторизация с пустым полем {empty_field} возвращает 400')
+    @pytest.mark.parametrize('empty_field', ['login', 'password'])
+    def test_login_with_empty_field(self, courier, empty_field):
         payload = {
-            "login": generate_random_string_for_login(10),
-            "password": generate_random_string_for_login(10)
+            "login": courier["login"],
+            "password": courier["password"]
         }
-        
-        create_response = requests.post(self.URL + 'api/v1/courier', data=payload)
+        payload[empty_field] = ''
 
-        login_response = requests.post(self.URL + 'api/v1/courier/login', data={"login": payload["login"]})
+        response = CourierMethods.login(payload)
 
-        assert login_response.status_code == 400
-        assert login_response.json() == {"code": 400, "message": "Недостаточно данных для входа"}
+        assert response.status_code == 400
+        assert response.json()["message"] == Messages.NOT_ENOUGH_DATA_LOGIN
         

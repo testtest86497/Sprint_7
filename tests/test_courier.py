@@ -1,49 +1,35 @@
-import requests
-from data import generate_random_string_for_login
 import allure
+import pytest
+from data import Messages
+from methods.courier_methods import CourierMethods
 
 
-class TestCourier:  
-    URL = 'https://qa-scooter.praktikum-services.ru/'
+class TestCourier:
 
-    @allure.title('Создание нового курьера')
-    def test_create_new_courier(self):
-        payload = {
-            "login": generate_random_string_for_login(10),
-            "password": generate_random_string_for_login(10),
-            "firstName": generate_random_string_for_login(10)
-            }
-
-        response = requests.post(self.URL + 'api/v1/courier', data=payload)
+    @allure.title('Курьера можно создать')
+    def test_create_new_courier(self, courier_data):
+        response = CourierMethods.create(courier_data)
 
         assert response.status_code == 201
         assert response.json() == {"ok": True}
 
 
-    @allure.title('Создание дубликата курьера')
-    def test_create_duplicate_courier(self):
-        payload = {
-            "login": generate_random_string_for_login(10),
-            "password": generate_random_string_for_login(10),
-            "firstName": generate_random_string_for_login(10)
-            }
+    @allure.title('Нельзя создать двух одинаковых курьеров')
+    def test_create_duplicate_courier(self, courier):
+        response = CourierMethods.create(courier)
 
-        response1 = requests.post(self.URL + 'api/v1/courier', data=payload)
-        response2 = requests.post(self.URL + 'api/v1/courier', data=payload)
-
-        assert response1.status_code == 201
-        assert response2.status_code == 409
-        assert response2.json() == {"code": 409, "message": "Этот логин уже используется. Попробуйте другой."}
+        assert response.status_code == 409
+        assert response.json()["message"] == Messages.COURIER_EXISTS
 
 
-    @allure.title('Создание курьера без логина')
-    def test_create_courier_without_login(self):
-        payload = {
-            "password": generate_random_string_for_login(10),
-            "firstName": generate_random_string_for_login(10)
-        }
+    @allure.title('Нельзя создать курьера без поля {missing_field}')
+    @pytest.mark.parametrize('missing_field', ['login', 'password'])
+    def test_create_courier_without_required_field(self, courier_data, missing_field):
+        payload = courier_data.copy()
+        del payload[missing_field]
 
-        response = requests.post(self.URL + 'api/v1/courier', data=payload)
+        response = CourierMethods.create(payload)
 
         assert response.status_code == 400
-        assert response.json() == {"code": 400, "message": "Недостаточно данных для создания учетной записи"}
+        assert response.json()["message"] == Messages.NOT_ENOUGH_DATA_CREATE
+        
